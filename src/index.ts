@@ -6,6 +6,7 @@ import fs from 'fs-extra'
 import chalk from 'chalk'
 import stream from 'stream'
 import Path from 'path'
+import emitted from 'p-event'
 
 type CreateArchiveResult = {
   archive: Archiver
@@ -123,8 +124,9 @@ export async function writeZip({
 
   if (!dryRun) {
     await fs.mkdirs(Path.dirname(filename))
-    archive.pipe(fs.createWriteStream(filename))
-    await archive.finalize()
+    const writeStream = fs.createWriteStream(filename)
+    archive.pipe(writeStream)
+    await Promise.all([emitted(writeStream, 'close'), archive.finalize()])
     // eslint-disable-next-line no-console
     console.error(Path.relative(process.cwd(), filename))
   }
