@@ -147,5 +147,10 @@
     "npm-packlist": "^3.0.0",
     "p-event": "^4.0.0",
     "yargs": "^17.3.0"
+  },
+  "@jcoreio/pack-lambda": {
+    "excludeDependencies": [
+      "@aws-sdk/client-s3"
+    ]
   }
 }

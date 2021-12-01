@@ -26,6 +26,15 @@ export async function createArchive({
   const packageJsonFile = Path.join(packageDir, 'package.json')
   const rawPackageJson = await fs.readFile(packageJsonFile)
   const manifest = JSON.parse(rawPackageJson.toString('utf8'))
+  const packLambdaConf = manifest['@jcoreio/pack-lambda']
+  if (
+    autoBundledDependencies == null &&
+    typeof packLambdaConf?.autoBundledDependencies === 'boolean'
+  )
+    autoBundledDependencies = packLambdaConf.autoBundledDependencies
+  const excludeDependencies = Array.isArray(packLambdaConf?.excludeDependencies)
+    ? packLambdaConf.excludeDependencies
+    : []
 
   await runScript({
     event: 'prepack',
@@ -43,7 +52,9 @@ export async function createArchive({
       !manifest.bundledDependencies &&
       manifest.dependencies
     ) {
-      manifest.bundledDependencies = Object.keys(manifest.dependencies)
+      manifest.bundledDependencies = Object.keys(manifest.dependencies).filter(
+        (d) => !excludeDependencies.includes(d)
+      )
       overwrote = true
       await fs.writeJson(packageJsonFile, manifest, { spaces: 2 })
     }

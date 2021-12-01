@@ -31,7 +31,9 @@ describe('writeZip', function () {
     ])
     const { dependencies, '@jcoreio/pack-lambda': packLambdaConf } = packageJson
     expect(result.bundled).to.contain.members(
-      Object.keys(packageJson.dependencies)
+      Object.keys(dependencies).filter(
+        (d) => !packLambdaConf?.excludeDependencies?.includes(d)
+      )
     )
     expect(await fs.pathExists(filename)).to.be.true
     const zip = new StreamZip.async({ file: filename })

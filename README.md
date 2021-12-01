@@ -27,6 +27,28 @@ Doesn't currently support:
 - `--workspace`
 - `--workspaces`
 
+# Configuration
+
+You can add the following config to `package.json`:
+
+```json
+{
+  "@jcoreio/pack-lambda": {
+    /**
+     * Setting this to false prevents automatically bundling all dependencies
+     * This has no effect if your package.json contains bundledDependencies
+     */
+    "autoBundledDependencies": false,
+    /**
+     * Excludes dependencies from getting bundled
+     * (aws-sdk is pre-installed in the Lambda runtime so you could do this to save space)
+     * This has no effect if your package.json contains bundledDependencies
+     */
+    "excludeDependencies": ["aws-sdk"]
+  }
+}
+```
+
 # CLI
 
 ## `pack-lambda` - create a .zip file
