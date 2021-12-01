@@ -1,31 +1,255 @@
-# typescript-library-skeleton
+# pack-lambda
 
-[![CircleCI](https://circleci.com/gh/jedwards1211/typescript-library-skeleton.svg?style=svg)](https://circleci.com/gh/jedwards1211/typescript-library-skeleton)
-[![Coverage Status](https://codecov.io/gh/jedwards1211/typescript-library-skeleton/branch/master/graph/badge.svg)](https://codecov.io/gh/jedwards1211/typescript-library-skeleton)
+[![CircleCI](https://circleci.com/gh/jcoreio/pack-lambda.svg?style=svg)](https://circleci.com/gh/jcoreio/pack-lambda)
+[![Coverage Status](https://codecov.io/gh/jcoreio/pack-lambda/branch/master/graph/badge.svg)](https://codecov.io/gh/jcoreio/pack-lambda)
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
-[![npm version](https://badge.fury.io/js/typescript-library-skeleton.svg)](https://badge.fury.io/js/typescript-library-skeleton)
+[![npm version](https://badge.fury.io/js/pack-lambda.svg)](https://badge.fury.io/js/pack-lambda)
 
-This is my personal skeleton for creating an typescript library npm package. You are welcome to use it.
+.zip packager for AWS Lambda that behaves more like npm pack than other packages
 
-## Quick start
+Supports:
 
-```sh
-npx 0-60 clone https://github.com/jedwards1211/typescript-library-skeleton.git
+- Scoped packages
+- Same filename as `npm pack`, except for extension
+- `prepack` package script
+- `--dry-run`
+- `--pack-destination`
+- `bundledDependencies`
+
+Doesn't currently support:
+
+- Packing other packages in args
+- `postpack` package script
+- `--json`
+- `--workspace`
+- `--workspaces`
+
+# Usage
+
+Doesn't bundle production `dependencies` by default!
+Make sure to set [`bundledDependencies`](https://docs.npmjs.com/cli/v8/configuring-npm/package-json#bundleddependencies)
+in your `package.json`. Put all production dependencies in there except ones provided by AWS, like `aws-sdk`.
+
+# CLI
+
+## `pack-lambda` - create a .zip file
+
+```
+npx --package @jcoreio/pack-lambda pack-lambda
+
+pack .zip file for AWS Lambda
+
+Options:
+  --version  Show version number                                       [boolean]
+  --help     Show help                                                 [boolean]
+  --dryRun   display contents without writing file    [boolean] [default: false]
 ```
 
-## Tools used
+### Example Output
 
-- babel 7
-- typescript
-- mocha
-- chai
-- istanbul
-- nyc
-- eslint
-- prettier
-- husky
-- semantic-release
-- renovate
-- Circle CI
-- Codecov.io
+```
+> @jcoreio/pack-lambda@0.0.0-development prepack
+
+<... prepack script output ...>
+
+📦  @jcoreio/pack-lambda@0.0.0-development
+=== Zip Contents ===
+es/index.js.flow
+index.js.flow
+es/types/npmcli__run-script/index.d.js
+types/npmcli__run-script/index.d.js
+bin/index.js
+es/bin/index.js
+es/index.js
+index.js
+package.json
+LICENSE.md
+README.md
+bin/index.d.ts
+es/bin/index.d.ts
+es/index.d.ts
+index.d.ts
+=== Zip Details ===
+name:          @jcoreio/pack-lambda
+version:       0.0.0-development
+filename:      jcoreio-pack-lambda-0.0.0-development.zip
+total files:   15
+jcoreio-pack-lambda-0.0.0-development.zip
+```
+
+## `upload` - upload to S3
+
+```
+npx --package @jcoreio/pack-lambda pack-lambda upload <bucket> [key]
+
+upload .zip to S3
+
+Positionals:
+  bucket  S3 Bucket[/Key]                                             [required]
+  key     S3 Key
+
+Options:
+  --version  Show version number                                       [boolean]
+  --help     Show help                                                 [boolean]
+```
+
+### Example Output
+
+```
+> @jcoreio/pack-lambda@0.0.0-development prepack
+
+<... prepack script output ...>
+
+📦  @jcoreio/pack-lambda@0.0.0-development
+=== Zip Contents ===
+es/index.js.flow
+index.js.flow
+es/types/npmcli__run-script/index.d.js
+types/npmcli__run-script/index.d.js
+bin/index.js
+es/bin/index.js
+es/index.js
+index.js
+package.json
+LICENSE.md
+README.md
+bin/index.d.ts
+es/bin/index.d.ts
+es/index.d.ts
+index.d.ts
+=== Zip Details ===
+name:          @jcoreio/pack-lambda
+version:       0.0.0-development
+filename:      jcoreio-pack-lambda-0.0.0-development.zip
+total files:   15
+Uploading to s3://jcore-deploy/lambda/node/@jcoreio/pack-lambda/jcoreio-pack-lambda-0.0.0-development.zip....done
+```
+
+# Node.js API
+
+## `writeZip`
+
+```js
+import { writeZip } from '@jcoreio/pack-lambda'
+```
+
+Packs and writes a .zip to disk
+
+```ts
+import { ManifestResult } from 'pacote'
+
+async function writeZip(options?: {
+  /**
+   * The directory of the package to pack.  Defaults to process.cwd()
+   */
+  packageDir?: string
+  /**
+   * The directory to save .zip file in
+   */
+  packDestination?: string
+  /**
+   * If true, will output to stderr but not write to disk
+   */
+  dryRun?: boolean
+}): Promise<{
+  /**
+   * The files that were packed (relative to packageDir)
+   */
+  files: string[]
+  /**
+   * The output .zip filename
+   */
+  filename: string
+  /**
+   * The package.json
+   */
+  manifest: ManifestResult
+}>
+```
+
+## `uploadToS3`
+
+```js
+import { uploadToS3 } from '@jcoreio/pack-lambda'
+```
+
+Packs and uploads a .zip to S3 (without writing anything to disk)
+
+```ts
+import { ManifestResult } from 'pacote'
+
+export async function uploadToS3(options: {
+  /**
+   * The directory of the package to pack.  Defaults to process.cwd()
+   */
+  packageDir?: string
+  /**
+   * The S3 bucket to upload to
+   */
+  Bucket: string
+  /**
+   * The S3 key to upload to.  Defaults to `lambda/node/${packageName}/${filename}`
+   */
+  Key?: string
+}): Promise<{
+  /**
+   * The files that were packed (relative to packageDir)
+   */
+  files: string[]
+  /**
+   * The output .zip filename
+   */
+  filename: string
+  /**
+   * The package.json
+   */
+  manifest: ManifestResult
+  /**
+   * The S3 bucket the .zip was uploaded to
+   */
+  Bucket: string
+  /**
+   * The S3 key the .zip was uploaded to
+   */
+  Key: string
+}>
+```
+
+## `createArchive`
+
+```js
+import { createArchive } from '@jcoreio/pack-lambda'
+```
+
+Creates an archive but doesn't write it to disk or upload it, it's up to you to pipe it somewhere
+
+```ts
+import { Archiver } from 'archiver'
+import { ManifestResult } from 'pacote'
+
+async function createArchive(options: {
+  /**
+   * The directory of the package to pack
+   */
+  packageDir: string
+}): Promise<{
+  /**
+   * The Archiver instance to stream to `pipe` to something else.
+   * Make sure to await `archive.finalize()` after piping it.
+   */
+  archive: Archiver
+  /**
+   * The files that were packed
+   */
+  files: string[]
+  /**
+   * The output filename
+   */
+  filename: string
+  /**
+   * The package.json
+   */
+  manifest: ManifestResult
+}>
+```
