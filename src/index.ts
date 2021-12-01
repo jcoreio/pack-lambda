@@ -1,5 +1,5 @@
 import archiver, { Archiver } from 'archiver'
-import pacote, { ManifestResult } from 'pacote'
+import { ManifestResult } from 'pacote'
 import runScript from '@npmcli/run-script'
 import packlist from 'npm-packlist'
 import fs from 'fs-extra'
@@ -10,19 +10,21 @@ import Path from 'path'
 type CreateArchiveResult = {
   archive: Archiver
   files: string[]
+  bundled: string[]
   filename: string
   manifest: ManifestResult
 }
 
 export async function createArchive({
   packageDir,
+  autoBundledDependencies,
 }: {
   packageDir: string
+  autoBundledDependencies?: boolean
 }): Promise<CreateArchiveResult> {
-  const manifest = await pacote.manifest(packageDir)
-  const filename = `${manifest.name}-${manifest.version}.zip`
-    .replace(/^@/, '')
-    .replace(/\//, '-')
+  const packageJsonFile = Path.join(packageDir, 'package.json')
+  const rawPackageJson = await fs.readFile(packageJsonFile)
+  const manifest = JSON.parse(rawPackageJson.toString('utf8'))
 
   await runScript({
     event: 'prepack',
@@ -31,37 +33,66 @@ export async function createArchive({
     pkg: manifest,
   })
 
-  const files = await packlist({ path: packageDir })
+  let overwrote = false
+  let files: string[]
+  const packlistOptions = { bundled: [], path: packageDir }
+  try {
+    if (
+      autoBundledDependencies !== false &&
+      !manifest.bundledDependencies &&
+      manifest.dependencies
+    ) {
+      manifest.bundledDependencies = Object.keys(manifest.dependencies)
+      overwrote = true
+      await fs.writeJson(packageJsonFile, manifest, { spaces: 2 })
+    }
+    files = await packlist(packlistOptions)
+  } finally {
+    if (overwrote && rawPackageJson)
+      await fs.writeFile(packageJsonFile, rawPackageJson)
+  }
+  const filename = `${manifest.name}-${manifest.version}.zip`
+    .replace(/^@/, '')
+    .replace(/\//, '-')
 
   const archive = archiver('zip')
 
   for (const file of files) {
     archive.file(Path.join(packageDir, file), { name: file })
   }
+  const { bundled } = packlistOptions
 
-  return { archive, files, filename, manifest }
+  return { archive, files, bundled, filename, manifest }
 }
 
 function printDetails({
   filename,
   files,
+  bundled,
   manifest: { name, version },
 }: {
   filename: string
   files: string[]
+  bundled: string[]
   manifest: ManifestResult
 }) {
-  // eslint-disable-next-line no-console
-  console.error(`📦  ${name}@${version}`)
   /* eslint-disable no-console */
+  console.error(`📦  ${name}@${version}`)
   console.error(chalk.magenta('=== Zip Contents ==='))
   for (const file of files) {
-    console.error(file)
+    if (!file.startsWith('node_modules/')) console.error(file)
+  }
+  if (bundled.length) {
+    console.error(chalk.magenta('=== Bundled Dependencies ==='))
+    for (const dep of bundled) {
+      console.error(dep)
+    }
   }
   console.error(chalk.magenta('=== Zip Details ==='))
   console.error(`name:          ${name}`)
   console.error(`version:       ${version}`)
   console.error(`filename:      ${Path.relative(process.cwd(), filename)}`)
+  console.error(`bundled deps:  ${bundled.length}`)
   console.error(`total files:   ${files.length}`)
   /* eslint-enable no-console */
 }
@@ -70,21 +101,25 @@ export async function writeZip({
   packageDir = process.cwd(),
   packDestination = packageDir,
   dryRun,
+  autoBundledDependencies,
 }: {
   packageDir?: string
   packDestination?: string
   dryRun?: boolean
+  autoBundledDependencies?: boolean
 } = {}): Promise<{
   files: string[]
+  bundled: string[]
   filename: string
   manifest: ManifestResult
 }> {
   const result = await createArchive({
     packageDir,
+    autoBundledDependencies,
   })
-  const { archive, files, manifest } = result
+  const { archive, files, bundled, manifest } = result
   const filename = Path.resolve(packDestination, result.filename)
-  printDetails({ filename, files, manifest })
+  printDetails({ filename, files, bundled, manifest })
 
   if (!dryRun) {
     await fs.mkdirs(Path.dirname(filename))
@@ -93,11 +128,12 @@ export async function writeZip({
     // eslint-disable-next-line no-console
     console.error(Path.relative(process.cwd(), filename))
   }
-  return { files, filename, manifest }
+  return { files, bundled, filename, manifest }
 }
 
 type UploadToS3Result = {
   files: string[]
+  bundled: string[]
   filename: string
   manifest: ManifestResult
   Bucket: string
@@ -108,20 +144,23 @@ export async function uploadToS3({
   packageDir = process.cwd(),
   Bucket: bucket,
   Key: key,
+  autoBundledDependencies,
 }: {
   packageDir?: string
   Bucket: string
   Key?: string
+  autoBundledDependencies?: boolean
 }): Promise<UploadToS3Result> {
-  const { archive, filename, files, manifest } = await createArchive({
+  const { archive, filename, files, bundled, manifest } = await createArchive({
     packageDir,
+    autoBundledDependencies,
   })
   const parts = bucket.replace(/^s3:\/\//, '').split(/\//)
   const Bucket = parts[0]
   const Key = key || parts[1] || `lambda/node/${manifest.name}/${filename}`
   const { S3Client } = await import('@aws-sdk/client-s3')
   const { Upload } = await import('@aws-sdk/lib-storage')
-  printDetails({ filename, files, manifest })
+  printDetails({ filename, files, bundled, manifest })
 
   const upload = new Upload({
     client: new S3Client({}),
@@ -135,5 +174,5 @@ export async function uploadToS3({
 
   process.stderr.write(`done\n`)
 
-  return { files, filename, manifest, Bucket, Key }
+  return { files, bundled, filename, manifest, Bucket, Key }
 }

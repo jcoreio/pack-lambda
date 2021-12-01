@@ -6,11 +6,13 @@ import { writeZip, uploadToS3 } from '../index'
 type WriteZipOptions = {
   dryRun: boolean
   packDestination?: string
+  autoBundledDependencies?: boolean
 }
 
 type UploadOptions = {
   bucket: string
   key?: string
+  autoBundledDependencies?: boolean
 }
 
 yargs(process.argv.slice(2))
@@ -20,18 +22,30 @@ yargs(process.argv.slice(2))
     'pack .zip file for AWS Lambda',
     (yargs) =>
       yargs
-        .option('dryRun', {
+        .option('dry-run', {
           describe: 'display contents without writing file',
           type: 'boolean',
           default: false,
         })
-        .option('packDestination', {
+        .option('pack-destination', {
           describe: 'directory in which to save .zip files',
           type: 'string',
+        })
+        .option('no-auto-bundled-dependencies', {
+          describe: 'disable bundling dependencies by default',
+          type: 'boolean',
         }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ({ dryRun, packDestination }: Arguments<WriteZipOptions>): Promise<any> =>
-      writeZip({ dryRun, packDestination })
+    ({
+      dryRun,
+      packDestination,
+      autoBundledDependencies,
+    }: // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Arguments<WriteZipOptions>): Promise<any> =>
+      writeZip({
+        dryRun,
+        packDestination,
+        autoBundledDependencies,
+      })
   )
   .command(
     'upload <bucket> [key]',
@@ -42,10 +56,22 @@ yargs(process.argv.slice(2))
           describe: 'S3 Bucket[/Key]',
           demandOption: true,
         })
-        .positional('key', { describe: 'S3 Key' }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ({ bucket, key }: Arguments<UploadOptions>): Promise<any> =>
-      uploadToS3({ Bucket: bucket, Key: key })
+        .positional('key', { describe: 'S3 Key' })
+        .option('no-auto-bundled-dependencies', {
+          describe: 'disable bundling dependencies by default',
+          type: 'boolean',
+        }),
+    ({
+      bucket,
+      key,
+      autoBundledDependencies,
+    }: // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Arguments<UploadOptions>): Promise<any> =>
+      uploadToS3({
+        Bucket: bucket,
+        Key: key,
+        autoBundledDependencies,
+      })
   )
   .demandCommand()
   .help().argv

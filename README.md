@@ -16,6 +16,8 @@ Supports:
 - `--dry-run`
 - `--pack-destination`
 - `bundledDependencies`
+- Automatically bundles all `dependencies` if `bundledDependencies` isn't present
+  (WARNING: this is accomplished by temporarily overwriting your `package.json`)
 
 Doesn't currently support:
 
@@ -24,12 +26,6 @@ Doesn't currently support:
 - `--json`
 - `--workspace`
 - `--workspaces`
-
-# Usage
-
-Doesn't bundle production `dependencies` by default!
-Make sure to set [`bundledDependencies`](https://docs.npmjs.com/cli/v8/configuring-npm/package-json#bundleddependencies)
-in your `package.json`. Put all production dependencies in there except ones provided by AWS, like `aws-sdk`.
 
 # CLI
 
@@ -41,9 +37,13 @@ npx --package @jcoreio/pack-lambda pack-lambda
 pack .zip file for AWS Lambda
 
 Options:
-  --version  Show version number                                       [boolean]
-  --help     Show help                                                 [boolean]
-  --dryRun   display contents without writing file    [boolean] [default: false]
+  --version                       Show version number                  [boolean]
+  --help                          Show help                            [boolean]
+  --dry-run                       display contents without writing file
+                                                      [boolean] [default: false]
+  --pack-destination              directory in which to save .zip files [string]
+  --no-auto-bundled-dependencies  disable bundling dependencies by default
+                                                                       [boolean]
 ```
 
 ### Example Output
@@ -70,11 +70,24 @@ bin/index.d.ts
 es/bin/index.d.ts
 es/index.d.ts
 index.d.ts
+=== Bundled Dependencies ===
+@aws-sdk/client-s3
+@aws-sdk/lib-storage
+@babel/runtime
+@npmcli/run-script
+archiver
+chalk
+fs-extra
+npm-package-arg
+npm-packlist
+yargs
+@aws-sdk/types
 === Zip Details ===
 name:          @jcoreio/pack-lambda
 version:       0.0.0-development
 filename:      jcoreio-pack-lambda-0.0.0-development.zip
-total files:   15
+bundled deps:  11
+total files:   922
 jcoreio-pack-lambda-0.0.0-development.zip
 ```
 
@@ -90,8 +103,10 @@ Positionals:
   key     S3 Key
 
 Options:
-  --version  Show version number                                       [boolean]
-  --help     Show help                                                 [boolean]
+  --version                       Show version number                  [boolean]
+  --help                          Show help                            [boolean]
+  --no-auto-bundled-dependencies  disable bundling dependencies by default
+                                                                       [boolean]
 ```
 
 ### Example Output
@@ -118,11 +133,24 @@ bin/index.d.ts
 es/bin/index.d.ts
 es/index.d.ts
 index.d.ts
+=== Bundled Dependencies ===
+@aws-sdk/client-s3
+@aws-sdk/lib-storage
+@babel/runtime
+@npmcli/run-script
+archiver
+chalk
+fs-extra
+npm-package-arg
+npm-packlist
+yargs
+@aws-sdk/types
 === Zip Details ===
 name:          @jcoreio/pack-lambda
 version:       0.0.0-development
 filename:      jcoreio-pack-lambda-0.0.0-development.zip
-total files:   15
+bundled deps:  11
+total files:   922
 Uploading to s3://jcore-deploy/lambda/node/@jcoreio/pack-lambda/jcoreio-pack-lambda-0.0.0-development.zip....done
 ```
 
@@ -152,6 +180,10 @@ async function writeZip(options?: {
    * If true, will output to stderr but not write to disk
    */
   dryRun?: boolean
+  /**
+   * If false (or if package.json contains bundledDependencies), will not bundle dependencies by default
+   */
+  autoBundledDependencies?: boolean
 }): Promise<{
   /**
    * The files that were packed (relative to packageDir)
@@ -184,6 +216,10 @@ export async function uploadToS3(options: {
    * The directory of the package to pack.  Defaults to process.cwd()
    */
   packageDir?: string
+  /**
+   * If false (or if package.json contains bundledDependencies), will not bundle dependencies by default
+   */
+  autoBundledDependencies?: boolean
   /**
    * The S3 bucket to upload to
    */
@@ -233,6 +269,10 @@ async function createArchive(options: {
    * The directory of the package to pack
    */
   packageDir: string
+  /**
+   * If false (or if package.json contains bundledDependencies), will not bundle dependencies by default
+   */
+  autoBundledDependencies?: boolean
 }): Promise<{
   /**
    * The Archiver instance to stream to `pipe` to something else.

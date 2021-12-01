@@ -11,7 +11,7 @@ describe('writeZip', function () {
   this.timeout(60000)
   it('works', async () => {
     await runScript({
-      event: 'clena',
+      event: 'clean',
       stdio: 'inherit',
       path: process.cwd(),
       pkg: packageJson,
@@ -28,6 +28,9 @@ describe('writeZip', function () {
       'index.d.ts',
       'bin/index.js',
     ])
+    expect(result.bundled).to.contain.members(
+      Object.keys(packageJson.dependencies)
+    )
     expect(await fs.pathExists(filename)).to.be.true
   })
 })
