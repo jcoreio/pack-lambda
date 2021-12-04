@@ -6,13 +6,11 @@ import { writeZip, uploadToS3 } from '../index'
 type WriteZipOptions = {
   dryRun: boolean
   packDestination?: string
-  autoBundledDependencies?: boolean
 }
 
 type UploadOptions = {
   bucket: string
   key?: string
-  autoBundledDependencies?: boolean
 }
 
 yargs(process.argv.slice(2))
@@ -30,21 +28,15 @@ yargs(process.argv.slice(2))
         .option('pack-destination', {
           describe: 'directory in which to save .zip files',
           type: 'string',
-        })
-        .option('no-auto-bundled-dependencies', {
-          describe: 'disable bundling dependencies by default',
-          type: 'boolean',
         }),
     ({
       dryRun,
       packDestination,
-      autoBundledDependencies,
     }: // eslint-disable-next-line @typescript-eslint/no-explicit-any
     Arguments<WriteZipOptions>): Promise<any> =>
       writeZip({
         dryRun,
         packDestination,
-        autoBundledDependencies,
       })
   )
   .command(
@@ -56,21 +48,15 @@ yargs(process.argv.slice(2))
           describe: 'S3 Bucket[/Key]',
           demandOption: true,
         })
-        .positional('key', { describe: 'S3 Key' })
-        .option('no-auto-bundled-dependencies', {
-          describe: 'disable bundling dependencies by default',
-          type: 'boolean',
-        }),
+        .positional('key', { describe: 'S3 Key' }),
     ({
       bucket,
       key,
-      autoBundledDependencies,
     }: // eslint-disable-next-line @typescript-eslint/no-explicit-any
     Arguments<UploadOptions>): Promise<any> =>
       uploadToS3({
         Bucket: bucket,
         Key: key,
-        autoBundledDependencies,
       })
   )
   .demandCommand()

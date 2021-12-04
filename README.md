@@ -6,7 +6,10 @@
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 [![npm version](https://badge.fury.io/js/pack-lambda.svg)](https://badge.fury.io/js/pack-lambda)
 
-.zip packager for AWS Lambda that behaves more like npm pack than other packages
+Great .zip packager and S3 uploader for AWS Lambda. Bundles only your `prod` dependencies
+that are already installed, no need to prune or copy to a temp directory
+and do a fresh install. And it even works with dependencies installed by
+`pnpm`!
 
 Supports:
 
@@ -15,9 +18,6 @@ Supports:
 - `prepack` package script
 - `--dry-run`
 - `--pack-destination`
-- `bundledDependencies`
-- Automatically bundles all `dependencies` if `bundledDependencies` isn't present
-  (WARNING: this is accomplished by temporarily overwriting your `package.json`)
 
 Doesn't currently support:
 
@@ -34,11 +34,6 @@ You can add the following config to `package.json`:
 ```json
 {
   "@jcoreio/pack-lambda": {
-    /**
-     * Setting this to false prevents automatically bundling all dependencies
-     * This has no effect if your package.json contains bundledDependencies
-     */
-    "autoBundledDependencies": false,
     /**
      * Excludes dependencies from getting bundled
      * (aws-sdk is pre-installed in the Lambda runtime so you could do this to save space)
@@ -64,8 +59,6 @@ Options:
   --dry-run                       display contents without writing file
                                                       [boolean] [default: false]
   --pack-destination              directory in which to save .zip files [string]
-  --no-auto-bundled-dependencies  disable bundling dependencies by default
-                                                                       [boolean]
 ```
 
 ### Example Output
@@ -127,8 +120,6 @@ Positionals:
 Options:
   --version                       Show version number                  [boolean]
   --help                          Show help                            [boolean]
-  --no-auto-bundled-dependencies  disable bundling dependencies by default
-                                                                       [boolean]
 ```
 
 ### Example Output
@@ -202,10 +193,6 @@ async function writeZip(options?: {
    * If true, will output to stderr but not write to disk
    */
   dryRun?: boolean
-  /**
-   * If false (or if package.json contains bundledDependencies), will not bundle dependencies by default
-   */
-  autoBundledDependencies?: boolean
 }): Promise<{
   /**
    * The files that were packed (relative to packageDir)
@@ -238,10 +225,6 @@ export async function uploadToS3(options: {
    * The directory of the package to pack.  Defaults to process.cwd()
    */
   packageDir?: string
-  /**
-   * If false (or if package.json contains bundledDependencies), will not bundle dependencies by default
-   */
-  autoBundledDependencies?: boolean
   /**
    * The S3 bucket to upload to
    */
@@ -291,10 +274,6 @@ async function createArchive(options: {
    * The directory of the package to pack
    */
   packageDir: string
-  /**
-   * If false (or if package.json contains bundledDependencies), will not bundle dependencies by default
-   */
-  autoBundledDependencies?: boolean
 }): Promise<{
   /**
    * The Archiver instance to stream to `pipe` to something else.

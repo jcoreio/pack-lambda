@@ -1,12 +1,12 @@
 import archiver, { Archiver } from 'archiver'
 import { ManifestResult } from 'pacote'
 import runScript from '@npmcli/run-script'
-import packlist from 'npm-packlist'
 import fs from 'fs-extra'
 import chalk from 'chalk'
 import stream from 'stream'
 import Path from 'path'
 import emitted from 'p-event'
+import packlist from './packlist'
 
 type CreateArchiveResult = {
   archive: Archiver
@@ -18,23 +18,18 @@ type CreateArchiveResult = {
 
 export async function createArchive({
   packageDir,
-  autoBundledDependencies,
 }: {
   packageDir: string
-  autoBundledDependencies?: boolean
 }): Promise<CreateArchiveResult> {
   const packageJsonFile = Path.join(packageDir, 'package.json')
   const rawPackageJson = await fs.readFile(packageJsonFile)
   const manifest = JSON.parse(rawPackageJson.toString('utf8'))
   const packLambdaConf = manifest['@jcoreio/pack-lambda']
-  if (
-    autoBundledDependencies == null &&
-    typeof packLambdaConf?.autoBundledDependencies === 'boolean'
+  const excludeDependencies: Set<string> = new Set(
+    Array.isArray(packLambdaConf?.excludeDependencies)
+      ? packLambdaConf.excludeDependencies
+      : []
   )
-    autoBundledDependencies = packLambdaConf.autoBundledDependencies
-  const excludeDependencies = Array.isArray(packLambdaConf?.excludeDependencies)
-    ? packLambdaConf.excludeDependencies
-    : []
 
   await runScript({
     event: 'prepack',
@@ -43,26 +38,11 @@ export async function createArchive({
     pkg: manifest,
   })
 
-  let overwrote = false
-  let files: string[]
-  const packlistOptions = { bundled: [], path: packageDir }
-  try {
-    if (
-      autoBundledDependencies !== false &&
-      !manifest.bundledDependencies &&
-      manifest.dependencies
-    ) {
-      manifest.bundledDependencies = Object.keys(manifest.dependencies).filter(
-        (d) => !excludeDependencies.includes(d)
-      )
-      overwrote = true
-      await fs.writeJson(packageJsonFile, manifest, { spaces: 2 })
-    }
-    files = await packlist(packlistOptions)
-  } finally {
-    if (overwrote && rawPackageJson)
-      await fs.writeFile(packageJsonFile, rawPackageJson)
-  }
+  const { files, symlinks, bundled } = await packlist({
+    packageDir,
+    excludeDependencies,
+  })
+
   const filename = `${manifest.name}-${manifest.version}.zip`
     .replace(/^@/, '')
     .replace(/\//, '-')
@@ -72,9 +52,10 @@ export async function createArchive({
   for (const file of files) {
     archive.file(Path.join(packageDir, file), { name: file })
   }
-  const { bundled } = packlistOptions
-
-  return { archive, files, bundled, filename, manifest }
+  for (const [from, { target, mode }] of symlinks.entries()) {
+    archive.symlink(from, target, mode)
+  }
+  return { archive, files: [...files], bundled, filename, manifest }
 }
 
 function printDetails({
@@ -113,12 +94,10 @@ export async function writeZip({
   packageDir = process.cwd(),
   packDestination = packageDir,
   dryRun,
-  autoBundledDependencies,
 }: {
   packageDir?: string
   packDestination?: string
   dryRun?: boolean
-  autoBundledDependencies?: boolean
 } = {}): Promise<{
   files: string[]
   bundled: string[]
@@ -127,7 +106,6 @@ export async function writeZip({
 }> {
   const result = await createArchive({
     packageDir,
-    autoBundledDependencies,
   })
   const { archive, files, bundled, manifest } = result
   const filename = Path.resolve(packDestination, result.filename)
@@ -157,16 +135,13 @@ export async function uploadToS3({
   packageDir = process.cwd(),
   Bucket: bucket,
   Key: key,
-  autoBundledDependencies,
 }: {
   packageDir?: string
   Bucket: string
   Key?: string
-  autoBundledDependencies?: boolean
 }): Promise<UploadToS3Result> {
   const { archive, filename, files, bundled, manifest } = await createArchive({
     packageDir,
-    autoBundledDependencies,
   })
   const parts = bucket.replace(/^s3:\/\//, '').split(/\//)
   const Bucket = parts[0]

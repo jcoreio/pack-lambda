@@ -1,7 +1,7 @@
 {
   "name": "@jcoreio/pack-lambda",
   "version": "0.0.0-development",
-  "description": ".zip packager for AWS Lambda that behaves more like npm pack than other packages",
+  "description": "Great .zip packager and S3 uploader for AWS Lambda",
   "main": "index.js",
   "sideEffects": false,
   "bin": {
@@ -22,11 +22,11 @@
     "test:watch": "cross-env NODE_ENV=test BABEL_ENV=test mocha $npm_package_config_mocha --watch",
     "test:debug": "cross-env NODE_ENV=test BABEL_ENV=test mocha --inspect-brk $npm_package_config_mocha",
     "codecov": "nyc report --reporter=text-lcov > coverage.lcov; codecov",
-    "prepack": "npm run build",
     "prepublishOnly": "npm run clean && npm run prettier:check && npm run lint && flow && npm test && npm run build",
     "open:coverage": "open coverage/lcov-report/index.html",
     "semantic-release": "semantic-release",
-    "start": "babel-node --extensions .ts src/bin/index.ts"
+    "start": "babel-node --extensions .ts src/bin/index.ts",
+    "debug": "babel-node --inspect-brk --extensions .ts src/bin/index.ts"
   },
   "config": {
     "lint": "--cache --ext .js,.ts src test",
