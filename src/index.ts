@@ -43,7 +43,11 @@ export async function createArchive({
     excludeDependencies,
   })
 
-  const filename = `${manifest.name}-${manifest.version}.zip`
+  const filename = `${manifest.name}-${manifest.version}${
+    manifest.version.endsWith('-development')
+      ? `-${new Date().toISOString().replace(/\D/g, '')}`
+      : ''
+  }.zip`
     .replace(/^@/, '')
     .replace(/\//, '-')
 
@@ -76,7 +80,11 @@ function printDetails({
     if (!file.startsWith('node_modules/')) console.error(file)
   }
   if (bundled.length) {
-    console.error(chalk.magenta('=== Bundled Dependencies ==='))
+    console.error(
+      chalk.magenta(
+        '=== Bundled Dependencies (transitive deps included but not shown) ==='
+      )
+    )
     for (const dep of bundled) {
       console.error(dep)
     }

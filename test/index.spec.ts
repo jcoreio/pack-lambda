@@ -5,7 +5,6 @@ import fs from 'fs-extra'
 import packageJson from '../package.json'
 import { expect } from 'chai'
 import runScript from '@npmcli/run-script'
-import Path from 'path'
 import StreamZip from 'node-stream-zip'
 
 describe('writeZip', function () {
@@ -17,13 +16,18 @@ describe('writeZip', function () {
       path: process.cwd(),
       pkg: packageJson,
     })
-    const filename = `${packageJson.name}-${packageJson.version}.zip`
-      .replace(/^@/, '')
-      .replace(/\//, '-')
-
-    await fs.remove(filename)
     const result = await writeZip()
-    expect(result.filename).to.equal(Path.resolve(filename))
+    const { filename } = result
+    expect(filename).to.match(
+      new RegExp(
+        `${packageJson.name
+          .replace(/^@/, '')
+          .replace(/\//, '-')}-${packageJson.version.replace(
+          /\./g,
+          '\\.'
+        )}-\\d{17}.zip`
+      )
+    )
     expect(result.files).to.contain.members([
       'index.js',
       'index.d.ts',
@@ -43,7 +47,9 @@ describe('writeZip', function () {
       'index.js',
       'index.d.ts',
       'bin/index.js',
-      'node_modules/npm-packlist/package.json',
+      'node_modules/npm-packlist',
+      'node_modules/@aws-sdk/lib-storage',
     ])
+    expect(entries).not.to.contain.members(['node_modules/@aws-sdk/client-ec2'])
   })
 })

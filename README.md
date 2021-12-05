@@ -27,6 +27,13 @@ Doesn't currently support:
 - `--workspace`
 - `--workspaces`
 
+# Filenames
+
+The default filename is `[name]-[version].zip` where `[name]` is the package name (scoped names like `@foo/bar`
+get converted to `foo-bar`) and `[version]` is the package version. If the version ends in `-development`,
+a timestamp will be appened like `[name]-[version]-[timestamp].zip` so that the filename is always different
+and a CloudFormation stack update will always update the Lambda code.
+
 # Configuration
 
 You can add the following config to `package.json`:
@@ -100,10 +107,10 @@ yargs
 === Zip Details ===
 name:          @jcoreio/pack-lambda
 version:       0.0.0-development
-filename:      jcoreio-pack-lambda-0.0.0-development.zip
+filename:      jcoreio-pack-lambda-0.0.0-development-20211205184649022.zip
 bundled deps:  11
 total files:   922
-jcoreio-pack-lambda-0.0.0-development.zip
+jcoreio-pack-lambda-0.0.0-development-20211205184649022.zip
 ```
 
 ## `upload` - upload to S3
@@ -161,10 +168,10 @@ yargs
 === Zip Details ===
 name:          @jcoreio/pack-lambda
 version:       0.0.0-development
-filename:      jcoreio-pack-lambda-0.0.0-development.zip
+filename:      jcoreio-pack-lambda-0.0.0-development-20211205184649022.zip
 bundled deps:  11
 total files:   922
-Uploading to s3://jcore-deploy/lambda/node/@jcoreio/pack-lambda/jcoreio-pack-lambda-0.0.0-development.zip....done
+Uploading to s3://jcore-deploy/lambda/node/@jcoreio/pack-lambda/jcoreio-pack-lambda-0.0.0-development-20211205184649022.zip....done
 ```
 
 # Node.js API
