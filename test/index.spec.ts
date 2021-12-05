@@ -22,10 +22,9 @@ describe('writeZip', function () {
       new RegExp(
         `${packageJson.name
           .replace(/^@/, '')
-          .replace(/\//, '-')}-${packageJson.version.replace(
-          /\./g,
-          '\\.'
-        )}-\\d{17}.zip`
+          .replace(/\//, '-')}-${packageJson.version.replace(/\./g, '\\.')}${
+          packageJson.version.endsWith('-development') ? `-\\d{17}` : ''
+        }.zip`
       )
     )
     expect(result.files).to.contain.members([
