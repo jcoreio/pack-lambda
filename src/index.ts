@@ -158,7 +158,6 @@ export async function uploadToS3({
   process.stderr.write(`Uploading to s3://${Bucket}/${Key}...`)
   upload.on('httpUploadProgress', () => process.stderr.write('.'))
   await Promise.all([upload.done(), archive.finalize()])
-  archive.pipe(fs.createWriteStream(Path.join(packageDir, filename)))
 
   process.stderr.write(`done\n`)
 
