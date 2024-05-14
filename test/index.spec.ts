@@ -2,6 +2,7 @@
 
 import { writeZip } from '../src/index'
 import fs from 'fs-extra'
+import Path from 'path'
 import packageJson from '../package.json'
 import { expect } from 'chai'
 import runScript from '@npmcli/run-script'
@@ -11,12 +12,15 @@ describe('writeZip', function () {
   this.timeout(60000)
   it('works', async () => {
     await runScript({
-      event: 'clean',
+      event: 'prepack',
       stdio: 'inherit',
       path: process.cwd(),
+      // @ts-expect-error types don't match
       pkg: packageJson,
     })
-    const result = await writeZip()
+    const result = await writeZip({
+      packageDir: Path.resolve(__dirname, '..', 'dist'),
+    })
     const { filename } = result
     expect(filename).to.match(
       new RegExp(

@@ -1,5 +1,5 @@
 import archiver, { Archiver } from 'archiver'
-import { ManifestResult } from 'pacote'
+import { type ManifestResult } from 'pacote'
 import runScript from '@npmcli/run-script'
 import fs from 'fs-extra'
 import chalk from 'chalk'
