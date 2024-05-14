@@ -187,6 +187,7 @@ export async function uploadToS3({
     try {
       await client.send(new HeadObjectCommand({ Bucket, Key }))
       alreadyExists = true
+      // eslint-disable-next-line no-console
       console.error(`✅ Bundle already exists: s3://${Bucket}/${Key}\n`)
     } catch (error) {
       // ignore
