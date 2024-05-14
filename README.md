@@ -127,6 +127,8 @@ Positionals:
 Options:
   --version                       Show version number                  [boolean]
   --help                          Show help                            [boolean]
+  --hash     compute hash and skip if already uploaded                 [boolean]
+
 ```
 
 ### Example Output
@@ -240,6 +242,11 @@ export async function uploadToS3(options: {
    * The S3 key to upload to.  Defaults to `lambda/node/${packageName}/${filename}`
    */
   Key?: string
+  /**
+   * If true, compute hash and append the hash to the filename; check if the S3 key
+   * already exists, and if so, skip upload.
+   */
+  useHash?: boolean
 }): Promise<{
   /**
    * The files that were packed (relative to packageDir)

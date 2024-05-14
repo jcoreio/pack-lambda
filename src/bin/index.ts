@@ -11,6 +11,7 @@ type WriteZipOptions = {
 type UploadOptions = {
   bucket: string
   key?: string
+  hash?: boolean
 }
 
 yargs(process.argv.slice(2))
@@ -48,15 +49,21 @@ yargs(process.argv.slice(2))
           describe: 'S3 Bucket[/Key]',
           demandOption: true,
         })
-        .positional('key', { describe: 'S3 Key' }),
+        .positional('key', { describe: 'S3 Key' })
+        .option('hash', {
+          describe: 'compute hash and skip if already uploaded',
+          type: 'boolean',
+        }),
     ({
       bucket,
       key,
+      hash,
     }: // eslint-disable-next-line @typescript-eslint/no-explicit-any
     Arguments<UploadOptions>): Promise<any> =>
       uploadToS3({
         Bucket: bucket,
         Key: key,
+        useHash: hash,
       })
   )
   .demandCommand()

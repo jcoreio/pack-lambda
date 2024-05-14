@@ -4,7 +4,7 @@
   "description": "Great .zip packager and S3 uploader for AWS Lambda",
   "sideEffects": false,
   "bin": {
-    "pack-lambda": "./bin/index.js"
+    "pack-lambda": "./dist/bin/index.js"
   },
   "scripts": {
     "prepack": "tc build && ln -sf ../node_modules dist/node_modules",
@@ -47,7 +47,7 @@
     "@types/chai": "^4.3.5",
     "@types/fs-extra": "^9.0.13",
     "@types/mocha": "^10.0.1",
-    "@types/node": "^16.10.2",
+    "@types/node": "^18.0.0",
     "@types/npm-package-arg": "^6.1.1",
     "@types/npm-packlist": "^1.1.2",
     "@types/pacote": "^11.1.1",
@@ -96,7 +96,7 @@
     }
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=18"
   },
   "packageManager": "pnpm@8.11.0"
 }

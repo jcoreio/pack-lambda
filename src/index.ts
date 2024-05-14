@@ -4,9 +4,12 @@ import runScript from '@npmcli/run-script'
 import fs from 'fs-extra'
 import chalk from 'chalk'
 import stream from 'stream'
+import { pipeline } from 'stream/promises'
 import Path from 'path'
 import emitted from 'p-event'
 import packlist from './packlist'
+import crypto from 'crypto'
+import { HeadObjectCommand } from '@aws-sdk/client-s3'
 
 type CreateArchiveResult = {
   archive: Archiver
@@ -18,8 +21,10 @@ type CreateArchiveResult = {
 
 export async function createArchive({
   packageDir,
+  includeTimestamp,
 }: {
   packageDir: string
+  includeTimestamp?: boolean
 }): Promise<CreateArchiveResult> {
   const packageJsonFile = Path.join(packageDir, 'package.json')
   const rawPackageJson = await fs.readFile(packageJsonFile)
@@ -44,7 +49,8 @@ export async function createArchive({
   })
 
   const filename = `${manifest.name}-${manifest.version}${
-    manifest.version.endsWith('-development')
+    includeTimestamp === true ||
+    (includeTimestamp !== false && manifest.version.endsWith('-development'))
       ? `-${new Date().toISOString().replace(/\D/g, '')}`
       : ''
   }.zip`
@@ -59,6 +65,7 @@ export async function createArchive({
   for (const [from, { target, mode }] of symlinks.entries()) {
     archive.symlink(from, target, mode)
   }
+  archive.finalize()
   return { archive, files: [...files], bundled, filename, manifest }
 }
 
@@ -123,7 +130,7 @@ export async function writeZip({
     await fs.mkdirs(Path.dirname(filename))
     const writeStream = fs.createWriteStream(filename)
     archive.pipe(writeStream)
-    await Promise.all([emitted(writeStream, 'close'), archive.finalize()])
+    await emitted(writeStream, 'close')
     // eslint-disable-next-line no-console
     console.error(Path.relative(process.cwd(), filename))
   }
@@ -143,31 +150,64 @@ export async function uploadToS3({
   packageDir = process.cwd(),
   Bucket: bucket,
   Key: key,
+  useHash,
 }: {
   packageDir?: string
   Bucket: string
   Key?: string
+  useHash?: boolean
 }): Promise<UploadToS3Result> {
-  const { archive, filename, files, bundled, manifest } = await createArchive({
+  const { S3Client } = await import('@aws-sdk/client-s3')
+  const client = new S3Client({})
+
+  const createArchiveResult = await createArchive({
     packageDir,
+    includeTimestamp: !useHash,
   })
+  const { archive, files, bundled, manifest } = createArchiveResult
+  let { filename } = createArchiveResult
+
   const parts = bucket.replace(/^s3:\/\//, '').split(/\//)
   const Bucket = parts[0]
-  const Key = key || parts[1] || `lambda/node/${manifest.name}/${filename}`
-  const { S3Client } = await import('@aws-sdk/client-s3')
-  const { Upload } = await import('@aws-sdk/lib-storage')
-  printDetails({ filename, files, bundled, manifest })
+  let Key = key || parts[1] || `lambda/node/${manifest.name}/${filename}`
 
-  const upload = new Upload({
-    client: new S3Client({}),
-    params: { Bucket, Key, Body: archive.pipe(new stream.PassThrough()) },
-  })
+  let alreadyExists = false
 
-  process.stderr.write(`Uploading to s3://${Bucket}/${Key}...`)
-  upload.on('httpUploadProgress', () => process.stderr.write('.'))
-  await Promise.all([upload.done(), archive.finalize()])
+  if (useHash) {
+    const hash = crypto.createHash('SHA-256')
+    for (const file of files.sort()) {
+      if (file.startsWith('node_modules')) continue
+      await pipeline(fs.createReadStream(Path.join(packageDir, file)), hash, {
+        end: false,
+      })
+    }
+    const digest = hash.digest('hex')
+    filename = filename.replace(/\.zip$/, `-${digest}.zip`)
+    Key = Key.replace(/\.zip$/, `-${digest}.zip`)
+    try {
+      await client.send(new HeadObjectCommand({ Bucket, Key }))
+      alreadyExists = true
+      console.error(`✅ Bundle already exists: s3://${Bucket}/${Key}\n`)
+    } catch (error) {
+      // ignore
+    }
+  }
 
-  process.stderr.write(`done\n`)
+  if (!alreadyExists) {
+    const { Upload } = await import('@aws-sdk/lib-storage')
+    printDetails({ filename, files, bundled, manifest })
+
+    const upload = new Upload({
+      client,
+      params: { Bucket, Key, Body: archive.pipe(new stream.PassThrough()) },
+    })
+
+    process.stderr.write(`🚀 Uploading to s3://${Bucket}/${Key}...`)
+    upload.on('httpUploadProgress', () => process.stderr.write('.'))
+    await upload.done()
+
+    process.stderr.write(`done\n`)
+  }
 
   return { files, bundled, filename, manifest, Bucket, Key }
 }
