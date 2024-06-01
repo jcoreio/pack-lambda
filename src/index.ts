@@ -200,7 +200,16 @@ export async function uploadToS3({
 
     const upload = new Upload({
       client,
-      params: { Bucket, Key, Body: archive.pipe(new stream.PassThrough()) },
+      params: {
+        Bucket,
+        Key,
+        Body:
+          // https://github.com/aws/aws-sdk-js-v3/issues/6153
+          // archiver uses a userland implementation of Node's Readable,
+          // and @aws-sdk doesn't recognize it unless it's a bonafide Node Readable, ugh.
+          // so pipe through a PassThrough to accomplish that.
+          archive.pipe(new stream.PassThrough()),
+      },
     })
 
     process.stderr.write(`🚀 Uploading to s3://${Bucket}/${Key}...`)
