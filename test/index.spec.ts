@@ -3,23 +3,25 @@
 import { writeZip } from '../src/index'
 import fs from 'fs-extra'
 import Path from 'path'
-import packageJson from '../package.json'
 import { expect } from 'chai'
 import runScript from '@npmcli/run-script'
 import StreamZip from 'node-stream-zip'
+import { dirname } from './dirname'
 
 describe('writeZip', function () {
   this.timeout(60000)
   it('works', async () => {
+    const packageJson = await fs.readJson(
+      Path.resolve(dirname, '..', 'package.json')
+    )
     await runScript({
       event: 'prepack',
       stdio: 'inherit',
       path: process.cwd(),
-      // @ts-expect-error types don't match
       pkg: packageJson,
     })
     const result = await writeZip({
-      packageDir: Path.resolve(__dirname, '..', 'dist'),
+      packageDir: Path.resolve(dirname, '..', 'dist'),
     })
     const { filename } = result
     expect(filename).to.match(
@@ -39,10 +41,10 @@ describe('writeZip', function () {
     const { dependencies, '@jcoreio/pack-lambda': packLambdaConf } = packageJson
     expect(result.bundled).to.contain.members(
       Object.keys(dependencies).filter(
-        (d) => !packLambdaConf?.excludeDependencies?.includes(d)
+        (d) => !packLambdaConf.excludeDependencies.includes(d)
       )
     )
-    expect(await fs.pathExists(filename)).to.be.true
+    expect(await fs.pathExists(filename)).to.equal(true)
     const zip = new StreamZip.async({ file: filename })
 
     const entries = Object.values(await zip.entries()).map((e) => e.name)

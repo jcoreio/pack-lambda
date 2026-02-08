@@ -1,5 +1,5 @@
 import archiver, { Archiver } from 'archiver'
-import { type ManifestResult } from 'pacote'
+import { type Manifest } from 'pacote'
 import runScript from '@npmcli/run-script'
 import fs from 'fs-extra'
 import chalk from 'chalk'
@@ -11,30 +11,38 @@ import packlist from './packlist'
 import crypto from 'crypto'
 import { HeadObjectCommand } from '@aws-sdk/client-s3'
 
-type CreateArchiveResult = {
-  archive: Archiver
+export interface CreateArchiveOptions {
+  packageDir: string
+  includeTimestamp?: boolean
+  excludeDependencies?: Iterable<string>
+}
+
+export interface ArchiveInfo {
   files: string[]
   bundled: string[]
   filename: string
-  manifest: ManifestResult
+  manifest: Manifest
+}
+
+export interface CreateArchiveResult extends ArchiveInfo {
+  archive: Archiver
 }
 
 export async function createArchive({
   packageDir,
   includeTimestamp,
-}: {
-  packageDir: string
-  includeTimestamp?: boolean
-}): Promise<CreateArchiveResult> {
+  excludeDependencies: inputExcludeDependencies,
+}: CreateArchiveOptions): Promise<CreateArchiveResult> {
   const packageJsonFile = Path.join(packageDir, 'package.json')
   const rawPackageJson = await fs.readFile(packageJsonFile)
   const manifest = JSON.parse(rawPackageJson.toString('utf8'))
   const packLambdaConf = manifest['@jcoreio/pack-lambda']
-  const excludeDependencies: Set<string> = new Set(
-    Array.isArray(packLambdaConf?.excludeDependencies)
-      ? packLambdaConf.excludeDependencies
-      : []
-  )
+  const excludeDependencies: Set<string> = new Set([
+    ...(Array.isArray(packLambdaConf?.excludeDependencies) ?
+      packLambdaConf.excludeDependencies
+    : []),
+    ...(inputExcludeDependencies || []),
+  ])
 
   await runScript({
     event: 'prepack',
@@ -49,10 +57,12 @@ export async function createArchive({
   })
 
   const filename = `${manifest.name}-${manifest.version}${
-    includeTimestamp === true ||
-    (includeTimestamp !== false && manifest.version.endsWith('-development'))
-      ? `-${new Date().toISOString().replace(/\D/g, '')}`
-      : ''
+    (
+      includeTimestamp === true ||
+      (includeTimestamp !== false && manifest.version.endsWith('-development'))
+    ) ?
+      `-${new Date().toISOString().replace(/\D/g, '')}`
+    : ''
   }.zip`
     .replace(/^@/, '')
     .replace(/\//, '-')
@@ -65,7 +75,7 @@ export async function createArchive({
   for (const [from, { target, mode }] of symlinks.entries()) {
     archive.symlink(from, target, mode)
   }
-  archive.finalize()
+  void archive.finalize()
   return { archive, files: [...files], bundled, filename, manifest }
 }
 
@@ -78,7 +88,7 @@ function printDetails({
   filename: string
   files: string[]
   bundled: string[]
-  manifest: ManifestResult
+  manifest: Manifest
 }) {
   /* eslint-disable no-console */
   console.error(`📦  ${name}@${version}`)
@@ -105,22 +115,20 @@ function printDetails({
   /* eslint-enable no-console */
 }
 
+export interface WriteZipOptions extends Partial<CreateArchiveOptions> {
+  packDestination?: string
+  dryRun?: boolean
+}
+
 export async function writeZip({
   packageDir = process.cwd(),
   packDestination = packageDir,
   dryRun,
-}: {
-  packageDir?: string
-  packDestination?: string
-  dryRun?: boolean
-} = {}): Promise<{
-  files: string[]
-  bundled: string[]
-  filename: string
-  manifest: ManifestResult
-}> {
+  ...rest
+}: WriteZipOptions = {}): Promise<ArchiveInfo> {
   const result = await createArchive({
     packageDir,
+    ...rest,
   })
   const { archive, files, bundled, manifest } = result
   const filename = Path.resolve(packDestination, result.filename)
@@ -137,11 +145,13 @@ export async function writeZip({
   return { files, bundled, filename, manifest }
 }
 
-type UploadToS3Result = {
-  files: string[]
-  bundled: string[]
-  filename: string
-  manifest: ManifestResult
+export interface UploadToS3Options extends Partial<CreateArchiveOptions> {
+  Bucket: string
+  Key?: string
+  useHash?: boolean
+}
+
+export interface UploadToS3Result extends ArchiveInfo {
   Bucket: string
   Key: string
 }
@@ -151,18 +161,15 @@ export async function uploadToS3({
   Bucket: bucket,
   Key: key,
   useHash,
-}: {
-  packageDir?: string
-  Bucket: string
-  Key?: string
-  useHash?: boolean
-}): Promise<UploadToS3Result> {
+  ...rest
+}: UploadToS3Options): Promise<UploadToS3Result> {
   const { S3Client } = await import('@aws-sdk/client-s3')
   const client = new S3Client({})
 
   const createArchiveResult = await createArchive({
     packageDir,
     includeTimestamp: !useHash,
+    ...rest,
   })
   const { archive, files, bundled, manifest } = createArchiveResult
   let { filename } = createArchiveResult
@@ -189,7 +196,7 @@ export async function uploadToS3({
       alreadyExists = true
       // eslint-disable-next-line no-console
       console.error(`✅ Bundle already exists: s3://${Bucket}/${Key}\n`)
-    } catch (error) {
+    } catch {
       // ignore
     }
   }

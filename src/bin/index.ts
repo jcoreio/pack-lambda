@@ -1,25 +1,13 @@
 #! /usr/bin/env node
 
-import yargs, { Arguments } from 'yargs'
-import { writeZip, uploadToS3 } from '../index'
+import yargs from 'yargs/yargs'
 
-type WriteZipOptions = {
-  dryRun: boolean
-  packDestination?: string
-}
-
-type UploadOptions = {
-  bucket: string
-  key?: string
-  hash?: boolean
-}
-
-yargs(process.argv.slice(2))
+void yargs(process.argv.slice(2))
   .scriptName('pack-lambda')
-  .command(
-    '$0',
-    'pack .zip file for AWS Lambda',
-    (yargs) =>
+  .command({
+    command: '$0',
+    describe: 'pack .zip file for AWS Lambda',
+    builder: (yargs) =>
       yargs
         .option('dry-run', {
           describe: 'display contents without writing file',
@@ -30,41 +18,37 @@ yargs(process.argv.slice(2))
           describe: 'directory in which to save .zip files',
           type: 'string',
         }),
-    ({
-      dryRun,
-      packDestination,
-    }: // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    Arguments<WriteZipOptions>): Promise<any> =>
-      writeZip({
+    handler: async ({ dryRun, packDestination }) => {
+      const { writeZip } = await import('../index')
+      await writeZip({
         dryRun,
         packDestination,
       })
-  )
-  .command(
-    'upload <bucket> [key]',
-    'upload .zip to S3',
-    (yargs) =>
+    },
+  })
+  .command({
+    command: 'upload <bucket> [key]',
+    describe: 'upload .zip to S3',
+    builder: (yargs) =>
       yargs
         .positional('bucket', {
           describe: 'S3 Bucket[/Key]',
           demandOption: true,
+          type: 'string',
         })
-        .positional('key', { describe: 'S3 Key' })
+        .positional('key', { describe: 'S3 Key', type: 'string' })
         .option('hash', {
           describe: 'compute hash and skip if already uploaded',
           type: 'boolean',
         }),
-    ({
-      bucket,
-      key,
-      hash,
-    }: // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    Arguments<UploadOptions>): Promise<any> =>
-      uploadToS3({
+    handler: async ({ bucket, key, hash }) => {
+      const { uploadToS3 } = await import('../index')
+      await uploadToS3({
         Bucket: bucket,
         Key: key,
         useHash: hash,
       })
-  )
+    },
+  })
   .demandCommand()
   .help().argv

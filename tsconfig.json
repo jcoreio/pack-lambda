@@ -1,9 +1,11 @@
 {
   "extends": "./node_modules/@jcoreio/toolchain-typescript/tsconfig.json",
-  "include": ["./src", "./test"],
+  "include": ["./src", "./test", "test/dirname.mts", "test/dirname.ts"],
   "exclude": ["node_modules"],
   "compilerOptions": {
     "lib": ["es2019", "DOM"],
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "module": "es2020",
+    "moduleResolution": "bundler"
   }
 }
